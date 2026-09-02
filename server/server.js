@@ -19,16 +19,16 @@ const server = http.createServer(app);
 // =========================================================
 // CORS
 // =========================================================
-
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:3000',
+  'https://skillswaphubmern.onrender.com',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests without origin (Postman, mobile apps, etc.)
       if (!origin) {
         return callback(null, true);
       }
@@ -37,11 +37,15 @@ app.use(
         return callback(null, true);
       }
 
+      console.error(`❌ CORS blocked origin: ${origin}`);
+
       return callback(
         new Error(`CORS blocked for origin: ${origin}`)
       );
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
