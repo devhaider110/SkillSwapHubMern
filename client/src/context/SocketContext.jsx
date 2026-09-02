@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = 'https://skillswap-backend-8lqp.onrender.com';
 
 export const SocketProvider = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
