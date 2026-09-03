@@ -645,15 +645,26 @@ const Chat = () => {
   // CALL HANDLER
   // ============================================================
 
-  const handleCall = (type = 'video') => {
-    if (!otherUser) return;
+ const handleCall = (type = 'video') => {
+  if (!otherUser) return;
 
-    const room = `call-${currentConversation._id}-${Date.now()}`;
-    setCallRoom(room);
-    setCallType(type);
-    setShowCallModal(true);
-    setShowMoreMenu(false);
-  };
+  const room = `call-${currentConversation._id}-${Date.now()}`;
+  setCallRoom(room);
+  setCallType(type);
+  setShowCallModal(true);
+  setShowMoreMenu(false);
+
+  // Notify the other user about incoming call
+  if (socket) {
+    socket.emit('initiate-call', {
+      conversationId: currentConversation._id,
+      callerId: user._id,
+      receiverId: otherUser._id,
+      type,
+      room,
+    });
+  }
+};
 
   // ============================================================
   // CLEAR CHAT

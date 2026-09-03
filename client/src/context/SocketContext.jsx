@@ -36,16 +36,26 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('connect', () => {
       console.log('Socket connected');
-      // ✅ Emit user-online with user ID
+      // Emit user-online with user ID
       newSocket.emit('user-online', user._id);
     });
 
     newSocket.on('online-users', (users) => {
+      console.log('Online users:', users);
       setOnlineUsers(users);
     });
 
     newSocket.on('disconnect', () => {
       console.log('Socket disconnected');
+    });
+
+    // Listen for incoming call notifications
+    newSocket.on('incoming-call', (data) => {
+      console.log('Incoming call:', data);
+      // Show notification (we'll use an alert for now)
+      alert(`Incoming ${data.type} call from user ${data.callerId}`);
+      // In a real implementation, we'd show a UI modal with Accept/Reject.
+      // For now, we'll just alert.
     });
 
     return () => {
