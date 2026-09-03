@@ -475,6 +475,14 @@ export const getMessages = (
     },
   });
 
+// Upload chat media
+export const uploadChatMedia = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return api.post('/upload/chat-media', formData);
+};
+
 // ============================================================
 // RESOURCES
 // ============================================================

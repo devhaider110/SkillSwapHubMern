@@ -43,4 +43,36 @@ router.post('/cover-image', protect, upload.single('image'), async (req, res) =>
   }
 });
 
+// Upload chat media
+router.post(
+  '/chat-media',
+  protect,
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        fileUrl: req.file.path,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+      });
+    } catch (error) {
+      console.error('Chat media upload error:', error);
+
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
 module.exports = router;
