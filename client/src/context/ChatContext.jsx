@@ -53,9 +53,16 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = (conversationId, content, type = 'text') => {
-    if (!socket || !conversationId || !content?.trim()) return;
-    socket.emit('send-message', { conversationId, content: content.trim(), type });
+  const sendMessage = (conversationId, content, type = 'text', fileUrl = '', fileName = '', fileSize = 0) => {
+    if (!socket || !conversationId || (!content?.trim() && !fileUrl)) return;
+    socket.emit('send-message', {
+      conversationId,
+      content: content?.trim() || '',
+      type,
+      fileUrl,
+      fileName,
+      fileSize,
+    });
   };
 
   const markRead = (conversationId) => {
