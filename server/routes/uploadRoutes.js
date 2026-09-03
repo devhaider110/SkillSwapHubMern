@@ -43,7 +43,7 @@ router.post('/cover-image', protect, upload.single('image'), async (req, res) =>
   }
 });
 
-// Upload chat media
+// ✅ CHAT MEDIA UPLOAD (Added)
 router.post(
   '/chat-media',
   protect,

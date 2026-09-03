@@ -1,71 +1,59 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { io } from 'socket.io-client';
 
-const SocketContext = createContext(null);
-const SOCKET_URL = 'https://skillswap-backend-8lqp.onrender.com';
+const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Do not create a socket while auth is still being restored.
-    if (authLoading || !user) {
+    if (!user) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+        setSocket(null);
       }
-      setSocket(null);
-      setOnlineUsers([]);
-      return undefined;
+      return;
     }
 
     const token = localStorage.getItem('accessToken');
-
     if (!token) {
-      setSocket(null);
-      return undefined;
+      console.warn('No access token for socket');
+      return;
     }
 
-    const newSocket = io(SOCKET_URL, {
+    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
       auth: { token },
-      transports: ['websocket'],
-      reconnection: true,
+      transports: ['websocket', 'polling'],
     });
 
     socketRef.current = newSocket;
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
-    });
-
-    newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message);
+      console.log('Socket connected');
+      // ✅ Emit user-online with user ID
+      newSocket.emit('user-online', user._id);
     });
 
     newSocket.on('online-users', (users) => {
-      setOnlineUsers(Array.isArray(users) ? users : []);
+      setOnlineUsers(users);
     });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+    newSocket.on('disconnect', () => {
+      console.log('Socket disconnected');
     });
 
     return () => {
-      newSocket.removeAllListeners();
       newSocket.disconnect();
-
-      if (socketRef.current === newSocket) {
-        socketRef.current = null;
-      }
-
+      socketRef.current = null;
       setSocket(null);
     };
-  }, [user, authLoading]);
+  }, [user]);
 
   return (
     <SocketContext.Provider value={{ socket, onlineUsers, socketRef }}>
@@ -74,12 +62,4 @@ export const SocketProvider = ({ children }) => {
   );
 };
 
-export const useSocket = () => {
-  const context = useContext(SocketContext);
-
-  if (!context) {
-    throw new Error('useSocket must be used inside SocketProvider');
-  }
-
-  return context;
-};
+export const useSocket = () => useContext(SocketContext);

@@ -1,24 +1,18 @@
 import axios from 'axios';
 
 // ============================================================
-// API BASE URL
+// API BASE URL (IMPORTANT)
 // ============================================================
 
-// Local development:
-// VITE_API_URL=http://localhost:5000/api
-
-// Production:
-// VITE_API_URL=https://skillswap-backend-8lqp.onrender.com/api
-
+// Local development: http://localhost:5000/api
+// Production: Render URL
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  'https://skillswap-backend-8lqp.onrender.com/api';
+  'http://localhost:5000/api'; // ✅ Ensure this is correct for local
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // ============================================================
@@ -34,7 +28,7 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Let browser/Axios automatically set multipart boundary
+    // For FormData, remove Content-Type so browser sets it with boundary
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     }
@@ -53,7 +47,6 @@ let refreshPromise = null;
 const clearStoredAuth = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
-
   window.dispatchEvent(new Event('auth:logout'));
 };
 
@@ -162,9 +155,10 @@ api.interceptors.response.use(
 );
 
 // ============================================================
-// AUTH
+// ALL EXPORTS (KEEP EXISTING + ADD CHAT UPLOAD)
 // ============================================================
 
+// ---------- AUTH ----------
 export const register = (userData) =>
   api.post('/auth/register', userData);
 
@@ -196,10 +190,7 @@ export const refreshToken = (refreshTokenValue) =>
 export const logout = () =>
   api.post('/auth/logout');
 
-// ============================================================
-// SKILLS
-// ============================================================
-
+// ---------- SKILLS ----------
 export const addTeachSkill = (data) =>
   api.post('/skills/teach', data);
 
@@ -227,10 +218,7 @@ export const deleteLearnSkill = (id) =>
 export const getMarketplaceSkills = (params) =>
   api.get('/skills/marketplace', { params });
 
-// ============================================================
-// SWAPS
-// ============================================================
-
+// ---------- SWAPS ----------
 export const createSwapRequest = (data) =>
   api.post('/swaps', data);
 
@@ -243,17 +231,11 @@ export const getOutgoingRequests = () =>
 export const updateRequestStatus = (id, status) =>
   api.put(`/swaps/${id}/status`, { status });
 
-// ============================================================
-// MATCHES
-// ============================================================
-
+// ---------- MATCHES ----------
 export const getRecommendations = () =>
   api.get('/matches/recommendations');
 
-// ============================================================
-// NOTIFICATIONS
-// ============================================================
-
+// ---------- NOTIFICATIONS ----------
 export const getNotifications = () =>
   api.get('/notifications');
 
@@ -266,10 +248,7 @@ export const markAllNotificationsRead = () =>
 export const deleteNotification = (id) =>
   api.delete(`/notifications/${id}`);
 
-// ============================================================
-// SESSIONS
-// ============================================================
-
+// ---------- SESSIONS ----------
 export const createSession = (data) =>
   api.post('/sessions', data);
 
@@ -285,10 +264,7 @@ export const updateSessionStatus = (id, status) =>
 export const getMeetingDetails = (id) =>
   api.get(`/sessions/${id}/meeting`);
 
-// ============================================================
-// REVIEWS
-// ============================================================
-
+// ---------- REVIEWS ----------
 export const createReview = (data) =>
   api.post('/reviews', data);
 
@@ -301,10 +277,7 @@ export const getUserReviews = (userId) =>
 export const updateReview = (id, data) =>
   api.put(`/reviews/${id}`, data);
 
-// ============================================================
-// SETTINGS
-// ============================================================
-
+// ---------- SETTINGS ----------
 export const updateSettings = (settings) =>
   api.put('/user/settings', { settings });
 
@@ -314,10 +287,7 @@ export const changePassword = (data) =>
 export const deleteAccount = () =>
   api.delete('/user/account');
 
-// ============================================================
-// ANALYTICS
-// ============================================================
-
+// ---------- ANALYTICS ----------
 export const getAnalyticsOverview = () =>
   api.get('/analytics/overview');
 
@@ -332,10 +302,7 @@ export const getSwapActivity = (period = 'week') =>
 export const getLearningHours = () =>
   api.get('/analytics/hours');
 
-// ============================================================
-// LEADERBOARD
-// ============================================================
-
+// ---------- LEADERBOARD ----------
 export const getLeaderboard = (
   type = 'mentors',
   period = 'alltime',
@@ -349,10 +316,7 @@ export const getLeaderboard = (
     },
   });
 
-// ============================================================
-// ADMIN
-// ============================================================
-
+// ---------- ADMIN ----------
 export const adminGetUsers = (
   page = 1,
   search = ''
@@ -401,10 +365,7 @@ export const adminGetSwaps = (
 export const adminUpdateSwap = (id, status) =>
   api.put(`/admin/swaps/${id}`, { status });
 
-// ============================================================
-// UPLOADS
-// ============================================================
-
+// ---------- UPLOADS ----------
 export const uploadProfilePic = (file) => {
   const formData = new FormData();
 
@@ -427,37 +388,7 @@ export const uploadCoverImage = (file) => {
   );
 };
 
-// ============================================================
-// SEARCH
-// ============================================================
-
-export const globalSearch = (
-  q,
-  type = 'all',
-  limit = 10
-) =>
-  api.get('/search', {
-    params: {
-      q,
-      type,
-      limit,
-    },
-  });
-
-export const getTrendingSkills = () =>
-  api.get('/search/trending');
-
-// ============================================================
-// PUBLIC PROFILE
-// ============================================================
-
-export const getPublicProfile = (username) =>
-  api.get(`/user/profile/${username}`);
-
-// ============================================================
-// CHAT
-// ============================================================
-
+// ---------- CHAT ----------
 export const getConversations = () =>
   api.get('/chat/conversations');
 
@@ -475,7 +406,7 @@ export const getMessages = (
     },
   });
 
-// Upload chat media
+// ✅ CHAT MEDIA UPLOAD (Fix: Use correct endpoint)
 export const uploadChatMedia = (file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -483,10 +414,7 @@ export const uploadChatMedia = (file) => {
   return api.post('/upload/chat-media', formData);
 };
 
-// ============================================================
-// RESOURCES
-// ============================================================
-
+// ---------- RESOURCES ----------
 export const uploadResource = (formData) =>
   api.post('/resources/upload', formData);
 
@@ -514,10 +442,7 @@ export const createFolder = (data) =>
 export const deleteFolder = (id) =>
   api.delete(`/resources/folders/${id}`);
 
-// ============================================================
-// QUIZZES
-// ============================================================
-
+// ---------- QUIZZES ----------
 export const createQuiz = (data) =>
   api.post('/quizzes', data);
 
@@ -541,10 +466,7 @@ export const getQuizResults = (
 export const getQuizLeaderboard = (id) =>
   api.get(`/quizzes/${id}/leaderboard`);
 
-// ============================================================
-// PROGRESS
-// ============================================================
-
+// ---------- PROGRESS ----------
 export const getProgressOverview = () =>
   api.get('/progress/overview');
 
@@ -554,10 +476,7 @@ export const getSkillProgress = () =>
 export const getWeeklyActivity = () =>
   api.get('/progress/weekly-activity');
 
-// ============================================================
-// COMMUNITY
-// ============================================================
-
+// ---------- COMMUNITY ----------
 export const createPost = (data) =>
   api.post('/community/posts', data);
 
@@ -588,8 +507,25 @@ export const deleteComment = (id) =>
 export const toggleLikeComment = (id) =>
   api.post(`/community/comments/${id}/like`);
 
-// ============================================================
-// EXPORT
-// ============================================================
+// ---------- SEARCH ----------
+export const globalSearch = (
+  q,
+  type = 'all',
+  limit = 10
+) =>
+  api.get('/search', {
+    params: {
+      q,
+      type,
+      limit,
+    },
+  });
+
+export const getTrendingSkills = () =>
+  api.get('/search/trending');
+
+// ---------- PROFILE ----------
+export const getPublicProfile = (username) =>
+  api.get(`/user/profile/${username}`);
 
 export default api;

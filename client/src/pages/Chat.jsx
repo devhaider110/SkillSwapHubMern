@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -27,11 +28,14 @@ import {
   Image as ImageIcon,
   Play,
   Mic,
+  UserX,
+  Trash2,
 } from 'lucide-react';
 
 const Chat = () => {
   const { user } = useAuth();
   const { socket } = useSocket();
+  const navigate = useNavigate();
 
   const {
     conversations,
@@ -70,6 +74,18 @@ const Chat = () => {
   const [selectedFile, setSelectedFile] =
     useState(null);
 
+  const [showMoreMenu, setShowMoreMenu] =
+    useState(false);
+
+  const [showCallModal, setShowCallModal] =
+    useState(false);
+
+  const [callType, setCallType] =
+    useState('video');
+
+  const [callRoom, setCallRoom] =
+    useState('');
+
   const messagesEndRef =
     useRef(null);
 
@@ -84,36 +100,11 @@ const Chat = () => {
   // ============================================================
 
   const emojis = [
-    '😀',
-    '😂',
-    '😍',
-    '🥰',
-    '😘',
-    '😊',
-    '😎',
-    '🤔',
-    '😢',
-    '😭',
-    '😡',
-    '😴',
-    '🤗',
-    '👍',
-    '👎',
-    '👏',
-    '🙏',
-    '❤️',
-    '🔥',
-    '✨',
-    '🎉',
-    '💯',
-    '💔',
-    '🥺',
-    '🤣',
-    '😅',
-    '😉',
-    '😇',
-    '🤝',
-    '💙',
+    '😀', '😂', '😍', '🥰', '😘', '😊',
+    '😎', '🤔', '😢', '😭', '😡', '😴',
+    '🤗', '👍', '👎', '👏', '🙏', '❤️',
+    '🔥', '✨', '🎉', '💯', '💔', '🥺',
+    '🤣', '😅', '😉', '😇', '🤝', '💙',
   ];
 
   // ============================================================
@@ -486,27 +477,17 @@ const Chat = () => {
     }
 
     if (bytes < 1024 * 1024) {
-      return `${(
-        bytes / 1024
-      ).toFixed(1)} KB`;
+      return `${(bytes / 1024).toFixed(1)} KB`;
     }
 
     if (
       bytes <
       1024 * 1024 * 1024
     ) {
-      return `${(
-        bytes /
-        (1024 * 1024)
-      ).toFixed(1)} MB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
-    return `${(
-      bytes /
-      (1024 *
-        1024 *
-        1024)
-    ).toFixed(1)} GB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
   // ============================================================
@@ -658,6 +639,41 @@ const Chat = () => {
         {message.content}
       </p>
     );
+  };
+
+  // ============================================================
+  // CALL HANDLER
+  // ============================================================
+
+  const handleCall = (type = 'video') => {
+    if (!otherUser) return;
+
+    const room = `call-${currentConversation._id}-${Date.now()}`;
+    setCallRoom(room);
+    setCallType(type);
+    setShowCallModal(true);
+    setShowMoreMenu(false);
+  };
+
+  // ============================================================
+  // CLEAR CHAT
+  // ============================================================
+
+  const clearChat = () => {
+    if (window.confirm('Clear all messages?')) {
+      setMessages([]);
+      setShowMoreMenu(false);
+      // Optionally call an API later to clear from backend
+    }
+  };
+
+  // ============================================================
+  // BLOCK USER
+  // ============================================================
+
+  const blockUser = () => {
+    alert('Block user feature coming soon.');
+    setShowMoreMenu(false);
   };
 
   // ============================================================
@@ -831,7 +847,6 @@ const Chat = () => {
 
         {currentConversation ? (
           <>
-
             {/* =================================================
                 HEADER
             ================================================= */}
@@ -894,29 +909,67 @@ const Chat = () => {
 
               {/* Header buttons */}
 
-              <div className="flex items-center gap-1">
+              <div className="relative flex items-center gap-1">
 
                 <button
-                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={() => handleCall('audio')}
+                  className="p-2 transition rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                   title="Voice call"
                 >
                   <Phone className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                 </button>
 
                 <button
-                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={() => handleCall('video')}
+                  className="p-2 transition rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                   title="Video call"
                 >
                   <Video className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                 </button>
 
+                {/* Three dots */}
+
                 <button
-                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="p-2 transition rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                   title="More"
                 >
                   <MoreVertical className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                 </button>
 
+                {showMoreMenu && (
+                  <div className="absolute right-0 z-50 w-48 py-1 mt-1 bg-white border shadow-xl top-full dark:bg-slate-800 rounded-xl border-slate-200/50 dark:border-slate-700/50">
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        if (otherUser?.username) {
+                          navigate(`/profile/${otherUser.username}`);
+                        }
+                      }}
+                      className="flex items-center w-full gap-2 px-4 py-2 text-sm transition text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                    >
+                      <User className="w-4 h-4" /> View Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        clearChat();
+                      }}
+                      className="flex items-center w-full gap-2 px-4 py-2 text-sm transition text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    >
+                      <Trash2 className="w-4 h-4" /> Clear Chat
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        blockUser();
+                      }}
+                      className="flex items-center w-full gap-2 px-4 py-2 text-sm transition text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    >
+                      <UserX className="w-4 h-4" /> Block User
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1300,6 +1353,36 @@ const Chat = () => {
           </div>
         )}
       </div>
+
+      {/* ======================================================
+          CALL MODAL
+      ====================================================== */}
+
+      {showCallModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl mx-4 h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="font-semibold text-slate-800 dark:text-white">
+                {callType === 'video' ? '📹 Video Call' : '📞 Voice Call'} with {otherUser?.name}
+              </h3>
+              <button
+                onClick={() => setShowCallModal(false)}
+                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+              </button>
+            </div>
+            <div className="flex-1 p-2">
+              <iframe
+                src={`https://meet.jit.si/${callRoom}?config.startWithAudioMuted=false&config.startWithVideoMuted=${callType === 'audio'}`}
+                allow="camera; microphone; fullscreen; display-capture"
+                className="w-full h-full border-0 rounded-lg"
+                title="Call"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

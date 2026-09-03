@@ -10,21 +10,13 @@ const path = require('path');
 
 dotenv.config();
 
-// =========================================================
-// DNS
-// =========================================================
-
 dns.setServers(['1.1.1.1', '8.8.8.8']);
-
-// =========================================================
-// APP + HTTP SERVER
-// =========================================================
 
 const app = express();
 const server = http.createServer(app);
 
 // =========================================================
-// CORS
+// CORS – Update with your production URLs
 // =========================================================
 
 const allowedOrigins = [
@@ -36,38 +28,14 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests without Origin
-    // e.g. Postman/server-to-server
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    console.error(`❌ CORS blocked origin: ${origin}`);
-
-    return callback(
-      new Error(`CORS blocked for origin: ${origin}`)
-    );
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.error(`CORS blocked origin: ${origin}`);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
-
   credentials: true,
-
-  methods: [
-    'GET',
-    'POST',
-    'PUT',
-    'PATCH',
-    'DELETE',
-    'OPTIONS',
-  ],
-
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
@@ -79,73 +47,29 @@ app.use(cors(corsOptions));
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.error(
-        `❌ Socket.IO CORS blocked origin: ${origin}`
-      );
-
-      return callback(
-        new Error(`Socket.IO CORS blocked for origin: ${origin}`)
-      );
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.error(`Socket CORS blocked origin: ${origin}`);
+      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
     },
-
     credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-    ],
+    methods: ['GET', 'POST'],
   },
 });
 
-// IMPORTANT:
-// socket.js must export a function like:
-// module.exports = (io) => { ... };
-
 const setupSocket = require('./socket');
-
 setupSocket(io);
 
 // =========================================================
-// SECURITY
+// MIDDLEWARE
 // =========================================================
 
 app.use(helmet());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// =========================================================
-// BODY PARSER
-// =========================================================
-
-app.use(
-  express.json({
-    limit: '10mb',
-  })
-);
-
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: '10mb',
-  })
-);
-
-// =========================================================
-// STATIC FILES
-// =========================================================
-
-app.use(
-  '/uploads',
-  express.static(
-    path.join(__dirname, 'uploads')
-  )
-);
+// Static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // =========================================================
 // ROUTES
@@ -170,95 +94,53 @@ const quizRoutes = require('./routes/quizRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 
-// =========================================================
-// API ROUTES
-// =========================================================
-
 app.use('/api/auth', authRoutes);
-
 app.use('/api/user', userRoutes);
-
 app.use('/api/skills', skillRoutes);
-
 app.use('/api/swaps', swapRoutes);
-
 app.use('/api/matches', matchRoutes);
-
 app.use('/api/upload', uploadRoutes);
-
 app.use('/api/notifications', notificationRoutes);
-
 app.use('/api/chat', chatRoutes);
-
 app.use('/api/sessions', sessionRoutes);
-
 app.use('/api/reviews', reviewRoutes);
-
 app.use('/api/search', searchRoutes);
-
 app.use('/api/leaderboard', leaderboardRoutes);
-
 app.use('/api/analytics', analyticsRoutes);
-
 app.use('/api/admin', adminRoutes);
-
 app.use('/api/resources', resourceRoutes);
-
 app.use('/api/quizzes', quizRoutes);
-
 app.use('/api/progress', progressRoutes);
-
 app.use('/api/community', communityRoutes);
 
 // =========================================================
-// TEST ROUTE
+// TEST & HEALTH
 // =========================================================
 
 app.get('/api/test', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'SkillSwap Backend is Running!',
-  });
+  res.json({ success: true, message: 'SkillSwap Backend is Running!' });
 });
-
-// =========================================================
-// HEALTH CHECK
-// =========================================================
 
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'SkillSwap server is healthy',
-  });
+  res.json({ success: true, message: 'SkillSwap server is healthy' });
 });
 
-// =========================================================
-// 404 HANDLER
-// =========================================================
-
+// 404
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route not found: ${req.method} ${req.originalUrl}`,
-  });
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
 
-// =========================================================
-// ERROR HANDLER
-// =========================================================
-
+// Error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-
   res.status(err.status || 500).json({
     success: false,
-    message:
-      err.message || 'Internal Server Error',
+    message: err.message || 'Internal Server Error',
   });
 });
 
 // =========================================================
-// DATABASE + SERVER
+// DATABASE & SERVER
 // =========================================================
 
 const PORT = process.env.PORT || 5000;
@@ -266,25 +148,13 @@ const PORT = process.env.PORT || 5000;
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log(
-      '✅ MongoDB Connected Successfully!'
-    );
-
+    console.log('✅ MongoDB Connected Successfully!');
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(
-        `🚀 Server running on port ${PORT}`
-      );
-
-      console.log(
-        `🔌 Socket.IO running on port ${PORT}`
-      );
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔌 Socket.IO running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error(
-      '❌ MongoDB Connection Error:',
-      err.message
-    );
-
+    console.error('❌ MongoDB Connection Error:', err.message);
     process.exit(1);
   });
