@@ -15,12 +15,11 @@ import {
   ArrowLeft,
   X,
   FileText,
-  Mic,
 } from 'lucide-react';
 
 const Chat = () => {
   const { user } = useAuth();
-  const { socket } = useSocket();
+  const { socket, onlineUsers } = useSocket(); // ✅ Get onlineUsers from SocketContext
   const navigate = useNavigate();
 
   const {
@@ -35,7 +34,6 @@ const Chat = () => {
     sendMessage,
     markRead,
     typingUsers,
-    onlineUsers,
   } = useChat();
 
   const [input, setInput] = useState('');
@@ -82,28 +80,16 @@ const Chat = () => {
     );
   };
 
+  // ✅ Fix: Check onlineUsers (array of user IDs)
   const isUserOnline = (userId) => {
     if (!userId) return false;
-    return onlineUsers?.some((id) => id?.toString() === userId?.toString()) || false;
+    return onlineUsers.some((id) => id?.toString() === userId?.toString());
   };
 
   const selectConversation = (conversation) => {
     setCurrentConversation(conversation);
     setShowSidebar(false);
     markRead(conversation._id);
-  };
-
-  const startConversation = async (userId) => {
-    try {
-      const response = await getOrCreateConversation(userId);
-      const conversation = response?.data?.conversation;
-      if (!conversation) return;
-      setCurrentConversation(conversation);
-      setShowSidebar(false);
-      fetchConversations();
-    } catch (error) {
-      console.error('Failed to start conversation:', error);
-    }
   };
 
   const handleSend = () => {
@@ -233,6 +219,10 @@ const Chat = () => {
   const otherUser = currentConversation ? getOtherUser(currentConversation) : null;
   const currentOnline = otherUser ? isUserOnline(otherUser._id) : false;
 
+  // ✅ Debug: Log online users
+  console.log('👥 Online users:', onlineUsers);
+  console.log('👤 Other user online?', currentOnline);
+
   return (
     <div className="flex h-screen pt-16 bg-slate-50 dark:bg-slate-900">
       {/* Sidebar */}
@@ -349,7 +339,7 @@ const Chat = () => {
                   </p>
                 </div>
               </div>
-              {/* No call buttons or more menu */}
+              {/* No extra buttons */}
             </div>
 
             {/* Messages */}
@@ -369,10 +359,11 @@ const Chat = () => {
               ) : (
                 messages.map((msg, idx) => {
                   const senderId = msg.sender?._id || msg.sender;
-                  const isMine = senderId?.toString() === user?._id?.toString();
+                  const isMine = senderId?.toString() === user._id?.toString();
                   const previous = messages[idx - 1];
                   const prevSender = previous?.sender?._id || previous?.sender;
                   const showAvatar = !previous || prevSender?.toString() !== senderId?.toString();
+                  // ✅ Check if the message is read by the other user
                   const read = msg.readBy?.some(
                     (id) => id?.toString() === otherUser?._id?.toString()
                   );
