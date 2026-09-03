@@ -26,7 +26,13 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+    // ✅ Production socket URL: remove /api from VITE_API_URL if present
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const socketUrl = apiUrl.replace(/\/api$/, ''); // Remove trailing /api
+
+    console.log('🔌 Socket URL:', socketUrl);
+
+    const newSocket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
@@ -35,27 +41,27 @@ export const SocketProvider = ({ children }) => {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('Socket connected');
-      // Emit user-online with user ID
+      console.log('✅ Socket connected');
       newSocket.emit('user-online', user._id);
     });
 
     newSocket.on('online-users', (users) => {
-      console.log('Online users:', users);
+      console.log('👥 Online users:', users);
       setOnlineUsers(users);
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Socket disconnected');
+      console.log('❌ Socket disconnected');
     });
 
-    // Listen for incoming call notifications
+    newSocket.on('connect_error', (err) => {
+      console.error('🔴 Socket connection error:', err.message);
+    });
+
+    // Optional: incoming call notification
     newSocket.on('incoming-call', (data) => {
       console.log('Incoming call:', data);
-      // Show notification (we'll use an alert for now)
       alert(`Incoming ${data.type} call from user ${data.callerId}`);
-      // In a real implementation, we'd show a UI modal with Accept/Reject.
-      // For now, we'll just alert.
     });
 
     return () => {

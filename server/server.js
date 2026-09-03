@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app);
 
 // =========================================================
-// CORS – Update with your production URLs
+// CORS – Production URLs
 // =========================================================
 
 const allowedOrigins = [
@@ -68,7 +68,6 @@ app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // =========================================================
@@ -125,7 +124,7 @@ app.get('/health', (req, res) => {
   res.json({ success: true, message: 'SkillSwap server is healthy' });
 });
 
-// 404
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
