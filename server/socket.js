@@ -357,174 +357,479 @@
 //   });
 // };
 
-
-const Conversation = require('./models/Conversation');
 const Message = require('./models/Message');
-const User = require('./models/User');
-const jwt = require('jsonwebtoken');
+const Conversation = require('./models/Conversation');
 
-const onlineUsers = new Map();
+// ============================================================
+// SOCKET.IO SETUP
+// ============================================================
 
-const previewFor = (content, type) => content || ({
-  image: '📷 Image',
-  video: '🎬 Video',
-  file: '📎 File',
-  audio: '🎵 Audio',
-  voice: '🎤 Voice message',
-}[type] || 'New message');
+const setupSocket = (io) => {
+  // ==========================================================
+  // CONNECTION
+  // ==========================================================
 
-module.exports = (io) => {
-  io.use((socket, next) => {
-    const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error('Authentication error'));
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id;
-      next();
-    } catch (error) {
-      console.error('Socket JWT Error:', error.message);
-      next(new Error('Invalid token'));
-    }
-  });
-
-  io.on('connection', async (socket) => {
-    const userId = socket.userId.toString();
-    console.log(`🟢 User ${userId} connected`);
-
-    try {
-      await User.findByIdAndUpdate(userId, { online: true });
-      onlineUsers.set(userId, socket.id);
-      io.emit('online-users', Array.from(onlineUsers.keys()));
-    } catch (error) {
-      console.error('Online status error:', error);
-    }
-
-    socket.on('join-conversation', (conversationId) => {
-      if (conversationId) socket.join(`conv-${conversationId}`);
-    });
-
-    socket.on('leave-conversation', (conversationId) => {
-      if (conversationId) socket.leave(`conv-${conversationId}`);
-    });
-
-    socket.on('send-message', async (data) => {
-      try {
-        const { conversationId, content = '', type = 'text', fileUrl = '', fileName = '', fileSize = 0 } = data || {};
-        if (!conversationId) return socket.emit('message-error', { message: 'Conversation ID is required' });
-        if (!content.trim() && !fileUrl) return socket.emit('message-error', { message: 'Message content or attachment is required' });
-
-        const conversation = await Conversation.findById(conversationId);
-        if (!conversation || !conversation.participants.some((p) => p.toString() === userId)) {
-          return socket.emit('message-error', { message: 'Conversation not found or access denied' });
-        }
-
-        const message = await Message.create({
-          conversationId,
-          sender: userId,
-          content,
-          type,
-          fileUrl,
-          fileName,
-          fileSize,
-          readBy: [userId],
-        });
-
-        await message.populate('sender', 'name username profilePic');
-        const preview = previewFor(content, type);
-        conversation.lastMessage = preview;
-        conversation.lastMessageTime = new Date();
-
-        const otherParticipants = conversation.participants.filter((p) => p.toString() !== userId);
-        for (const otherId of otherParticipants) {
-          const otherSocketId = onlineUsers.get(otherId.toString());
-          if (otherSocketId) {
-            io.to(otherSocketId).emit('new-message-notification', {
-              conversationId, senderId: userId, content: preview, type,
-            });
-          }
-          const unread = conversation.unreadCount.get(otherId.toString()) || 0;
-          conversation.unreadCount.set(otherId.toString(), unread + 1);
-        }
-        await conversation.save();
-        io.to(`conv-${conversationId}`).emit('receive-message', message);
-      } catch (error) {
-        console.error('❌ Send message error:', error);
-        socket.emit('message-error', { message: error.message });
-      }
-    });
-
-    socket.on('typing', ({ conversationId } = {}) => {
-      if (conversationId) socket.to(`conv-${conversationId}`).emit('user-typing', { userId, conversationId });
-    });
-
-    socket.on('stop-typing', ({ conversationId } = {}) => {
-      if (conversationId) socket.to(`conv-${conversationId}`).emit('user-stopped-typing', { userId, conversationId });
-    });
-
-    socket.on('mark-read', async ({ conversationId } = {}) => {
-      try {
-        if (!conversationId) return;
-        await Message.updateMany({ conversationId, readBy: { $ne: userId } }, { $addToSet: { readBy: userId } });
-        const conversation = await Conversation.findById(conversationId);
-        if (conversation) {
-          conversation.unreadCount.set(userId, 0);
-          await conversation.save();
-        }
-        io.to(`conv-${conversationId}`).emit('messages-read', { conversationId, userId });
-      } catch (error) {
-        console.error('❌ Mark read error:', error);
-      }
-    });
+  io.on('connection', (socket) => {
+    console.log(
+      `Socket connected: ${socket.id}`
+    );
 
     // ========================================================
-    // WebRTC call signaling. Media stays peer-to-peer.
+    // USER JOIN
     // ========================================================
-    socket.on('call-user', async ({ toUserId, offer, callType = 'audio', callId } = {}) => {
-      const targetSocketId = onlineUsers.get(String(toUserId));
-      if (!targetSocketId) return socket.emit('call-error', { message: 'User is offline.' });
-      const caller = await User.findById(userId).select('name profilePic username');
-      io.to(targetSocketId).emit('incoming-call', {
-        fromUserId: userId,
-        fromName: caller?.name || 'SkillSwap user',
-        fromProfilePic: caller?.profilePic || '',
-        fromUsername: caller?.username || '',
-        offer,
-        callType,
-        callId,
+
+    socket.on('user-online', (userId) => {
+      if (!userId) return;
+
+      socket.userId = userId.toString();
+
+      socket.join(
+        `user:${userId.toString()}`
+      );
+
+      io.emit('user-status', {
+        userId: userId.toString(),
+        online: true,
       });
     });
 
-    socket.on('accept-call', ({ toUserId, answer, callId } = {}) => {
-      const targetSocketId = onlineUsers.get(String(toUserId));
-      if (targetSocketId) io.to(targetSocketId).emit('call-accepted', { answer, callId, fromUserId: userId });
-    });
+    // ========================================================
+    // JOIN CONVERSATION
+    // ========================================================
 
-    socket.on('ice-candidate', ({ toUserId, candidate, callId } = {}) => {
-      const targetSocketId = onlineUsers.get(String(toUserId));
-      if (targetSocketId) io.to(targetSocketId).emit('ice-candidate', { candidate, callId, fromUserId: userId });
-    });
+    socket.on(
+      'join-conversation',
+      (conversationId) => {
+        if (!conversationId) return;
 
-    socket.on('reject-call', ({ toUserId, callId } = {}) => {
-      const targetSocketId = onlineUsers.get(String(toUserId));
-      if (targetSocketId) io.to(targetSocketId).emit('call-rejected', { callId, fromUserId: userId });
-    });
+        socket.join(
+          `conversation:${conversationId}`
+        );
 
-    socket.on('end-call', ({ toUserId, callId } = {}) => {
-      const targetSocketId = onlineUsers.get(String(toUserId));
-      if (targetSocketId) io.to(targetSocketId).emit('call-ended', { callId, fromUserId: userId });
-    });
-
-    socket.on('disconnect', async () => {
-      console.log(`🔴 User ${userId} disconnected`);
-      try {
-        if (onlineUsers.get(userId) === socket.id) {
-          onlineUsers.delete(userId);
-          await User.findByIdAndUpdate(userId, { online: false });
-          io.emit('online-users', Array.from(onlineUsers.keys()));
-        }
-      } catch (error) {
-        console.error('Disconnect error:', error);
+        console.log(
+          `Socket ${socket.id} joined conversation ${conversationId}`
+        );
       }
-    });
+    );
+
+    // ========================================================
+    // LEAVE CONVERSATION
+    // ========================================================
+
+    socket.on(
+      'leave-conversation',
+      (conversationId) => {
+        if (!conversationId) return;
+
+        socket.leave(
+          `conversation:${conversationId}`
+        );
+      }
+    );
+
+    // ========================================================
+    // SEND MESSAGE
+    // ========================================================
+
+    socket.on(
+      'send-message',
+      async (data) => {
+        try {
+          const {
+            conversationId,
+            content = '',
+            type = 'text',
+            fileUrl = '',
+            fileName = '',
+            fileSize = 0,
+            mimeType = '',
+          } = data || {};
+
+          if (!conversationId) {
+            return;
+          }
+
+          // --------------------------------------------------
+          // Validate message
+          // --------------------------------------------------
+
+          if (
+            type === 'text' &&
+            !content?.trim()
+          ) {
+            return;
+          }
+
+          if (
+            type !== 'text' &&
+            !fileUrl
+          ) {
+            return;
+          }
+
+          // --------------------------------------------------
+          // Find conversation
+          // --------------------------------------------------
+
+          const conversation =
+            await Conversation.findById(
+              conversationId
+            );
+
+          if (!conversation) {
+            socket.emit(
+              'chat-error',
+              {
+                message:
+                  'Conversation not found.',
+              }
+            );
+
+            return;
+          }
+
+          // --------------------------------------------------
+          // Determine sender
+          // --------------------------------------------------
+
+          let senderId =
+            socket.userId;
+
+          // If SocketContext sends userId
+          if (
+            !senderId &&
+            data.senderId
+          ) {
+            senderId =
+              data.senderId.toString();
+          }
+
+          // --------------------------------------------------
+          // Fallback sender
+          // --------------------------------------------------
+
+          if (!senderId) {
+            socket.emit(
+              'chat-error',
+              {
+                message:
+                  'Unable to identify sender.',
+              }
+            );
+
+            return;
+          }
+
+          // --------------------------------------------------
+          // Make sure sender belongs to conversation
+          // --------------------------------------------------
+
+          const isParticipant =
+            conversation.participants.some(
+              (participant) =>
+                participant.toString() ===
+                senderId.toString()
+            );
+
+          if (!isParticipant) {
+            socket.emit(
+              'chat-error',
+              {
+                message:
+                  'You are not a participant of this conversation.',
+              }
+            );
+
+            return;
+          }
+
+          // --------------------------------------------------
+          // Create message
+          // --------------------------------------------------
+
+          const message =
+            await Message.create({
+              conversationId,
+              sender: senderId,
+              content:
+                content?.trim() || '',
+              type,
+              fileUrl:
+                fileUrl || '',
+              fileName:
+                fileName || '',
+              fileSize:
+                Number(fileSize) || 0,
+              readBy: [senderId],
+            });
+
+          // --------------------------------------------------
+          // Update conversation
+          // --------------------------------------------------
+
+          const unreadUpdate = {};
+
+          conversation.participants.forEach(
+            (participant) => {
+              const participantId =
+                participant.toString();
+
+              if (
+                participantId !==
+                senderId.toString()
+              ) {
+                unreadUpdate[
+                  `unreadCount.${participantId}`
+                ] = 1;
+              }
+            }
+          );
+
+          conversation.lastMessage =
+            type === 'text'
+              ? content.trim()
+              : fileName || type;
+
+          conversation.lastMessageTime =
+            new Date();
+
+          // Increment unread count
+          for (const participant of conversation.participants) {
+            const participantId =
+              participant.toString();
+
+            if (
+              participantId !==
+              senderId.toString()
+            ) {
+              const currentCount =
+                conversation.unreadCount.get(
+                  participantId
+                ) || 0;
+
+              conversation.unreadCount.set(
+                participantId,
+                currentCount + 1
+              );
+            }
+          }
+
+          await conversation.save();
+
+          // --------------------------------------------------
+          // Populate sender
+          // --------------------------------------------------
+
+          const populatedMessage =
+            await Message.findById(
+              message._id
+            ).populate(
+              'sender',
+              'name username profilePic'
+            );
+
+          // --------------------------------------------------
+          // Send to conversation
+          // --------------------------------------------------
+
+          io.to(
+            `conversation:${conversationId}`
+          ).emit(
+            'receive-message',
+            populatedMessage
+          );
+
+          // --------------------------------------------------
+          // Also notify participants who aren't in room
+          // --------------------------------------------------
+
+          conversation.participants.forEach(
+            (participant) => {
+              const participantId =
+                participant.toString();
+
+              if (
+                participantId !==
+                senderId.toString()
+              ) {
+                io.to(
+                  `user:${participantId}`
+                ).emit(
+                  'new-message-notification',
+                  populatedMessage
+                );
+              }
+            }
+          );
+        } catch (error) {
+          console.error(
+            'Socket send-message error:',
+            error
+          );
+
+          socket.emit(
+            'chat-error',
+            {
+              message:
+                'Failed to send message.',
+            }
+          );
+        }
+      }
+    );
+
+    // ========================================================
+    // TYPING
+    // ========================================================
+
+    socket.on(
+      'typing',
+      ({ conversationId }) => {
+        if (!conversationId) return;
+
+        socket
+          .to(
+            `conversation:${conversationId}`
+          )
+          .emit(
+            'user-typing',
+            {
+              userId:
+                socket.userId,
+              conversationId,
+            }
+          );
+      }
+    );
+
+    // ========================================================
+    // STOP TYPING
+    // ========================================================
+
+    socket.on(
+      'stop-typing',
+      ({ conversationId }) => {
+        if (!conversationId) return;
+
+        socket
+          .to(
+            `conversation:${conversationId}`
+          )
+          .emit(
+            'user-stopped-typing',
+            {
+              userId:
+                socket.userId,
+              conversationId,
+            }
+          );
+      }
+    );
+
+    // ========================================================
+    // MARK READ
+    // ========================================================
+
+    socket.on(
+      'mark-read',
+      async ({ conversationId }) => {
+        try {
+          if (
+            !conversationId ||
+            !socket.userId
+          ) {
+            return;
+          }
+
+          // --------------------------------------------------
+          // Mark all messages as read
+          // --------------------------------------------------
+
+          await Message.updateMany(
+            {
+              conversationId,
+              sender: {
+                $ne: socket.userId,
+              },
+              readBy: {
+                $ne: socket.userId,
+              },
+            },
+            {
+              $addToSet: {
+                readBy:
+                  socket.userId,
+              },
+            }
+          );
+
+          // --------------------------------------------------
+          // Reset unread count
+          // --------------------------------------------------
+
+          const conversation =
+            await Conversation.findById(
+              conversationId
+            );
+
+          if (conversation) {
+            conversation.unreadCount.set(
+              socket.userId,
+              0
+            );
+
+            await conversation.save();
+          }
+
+          // --------------------------------------------------
+          // Notify conversation
+          // --------------------------------------------------
+
+          socket
+            .to(
+              `conversation:${conversationId}`
+            )
+            .emit(
+              'messages-read',
+              {
+                conversationId,
+                userId:
+                  socket.userId,
+              }
+            );
+        } catch (error) {
+          console.error(
+            'Socket mark-read error:',
+            error
+          );
+        }
+      }
+    );
+
+    // ========================================================
+    // DISCONNECT
+    // ========================================================
+
+    socket.on(
+      'disconnect',
+      () => {
+        console.log(
+          `Socket disconnected: ${socket.id}`
+        );
+
+        if (socket.userId) {
+          io.emit(
+            'user-status',
+            {
+              userId:
+                socket.userId,
+              online: false,
+            }
+          );
+        }
+      }
+    );
   });
 };
+
+module.exports = setupSocket;

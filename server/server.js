@@ -5,13 +5,20 @@ const cors = require('cors');
 const helmet = require('helmet');
 const dns = require('dns');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 const path = require('path');
 
 dotenv.config();
 
-// Optional DNS configuration
+// =========================================================
+// DNS
+// =========================================================
+
 dns.setServers(['1.1.1.1', '8.8.8.8']);
+
+// =========================================================
+// APP + HTTP SERVER
+// =========================================================
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +26,7 @@ const server = http.createServer(app);
 // =========================================================
 // CORS
 // =========================================================
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -26,8 +34,50 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
-app.use(
-  cors({
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests without Origin
+    // e.g. Postman/server-to-server
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.error(`❌ CORS blocked origin: ${origin}`);
+
+    return callback(
+      new Error(`CORS blocked for origin: ${origin}`)
+    );
+  },
+
+  credentials: true,
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS',
+  ],
+
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+  ],
+};
+
+app.use(cors(corsOptions));
+
+// =========================================================
+// SOCKET.IO
+// =========================================================
+
+const io = new Server(server, {
+  cors: {
     origin: function (origin, callback) {
       if (!origin) {
         return callback(null, true);
@@ -37,39 +87,54 @@ app.use(
         return callback(null, true);
       }
 
-      console.error(`❌ CORS blocked origin: ${origin}`);
+      console.error(
+        `❌ Socket.IO CORS blocked origin: ${origin}`
+      );
 
       return callback(
-        new Error(`CORS blocked for origin: ${origin}`)
+        new Error(`Socket.IO CORS blocked for origin: ${origin}`)
       );
     },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
 
-// =========================================================
-// SOCKET.IO
-// =========================================================
-
-const io = socketIo(server, {
-  cors: {
-    origin: allowedOrigins,
     credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+    ],
   },
 });
 
-require('./socket')(io);
+// IMPORTANT:
+// socket.js must export a function like:
+// module.exports = (io) => { ... };
+
+const setupSocket = require('./socket');
+
+setupSocket(io);
 
 // =========================================================
-// MIDDLEWARE
+// SECURITY
 // =========================================================
 
 app.use(helmet());
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// =========================================================
+// BODY PARSER
+// =========================================================
+
+app.use(
+  express.json({
+    limit: '10mb',
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: '10mb',
+  })
+);
 
 // =========================================================
 // STATIC FILES
@@ -77,7 +142,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(
   '/uploads',
-  express.static(path.join(__dirname, 'uploads'))
+  express.static(
+    path.join(__dirname, 'uploads')
+  )
 );
 
 // =========================================================
@@ -108,22 +175,39 @@ const communityRoutes = require('./routes/communityRoutes');
 // =========================================================
 
 app.use('/api/auth', authRoutes);
+
 app.use('/api/user', userRoutes);
+
 app.use('/api/skills', skillRoutes);
+
 app.use('/api/swaps', swapRoutes);
+
 app.use('/api/matches', matchRoutes);
+
 app.use('/api/upload', uploadRoutes);
+
 app.use('/api/notifications', notificationRoutes);
+
 app.use('/api/chat', chatRoutes);
+
 app.use('/api/sessions', sessionRoutes);
+
 app.use('/api/reviews', reviewRoutes);
+
 app.use('/api/search', searchRoutes);
+
 app.use('/api/leaderboard', leaderboardRoutes);
+
 app.use('/api/analytics', analyticsRoutes);
+
 app.use('/api/admin', adminRoutes);
+
 app.use('/api/resources', resourceRoutes);
+
 app.use('/api/quizzes', quizRoutes);
+
 app.use('/api/progress', progressRoutes);
+
 app.use('/api/community', communityRoutes);
 
 // =========================================================
@@ -131,7 +215,7 @@ app.use('/api/community', communityRoutes);
 // =========================================================
 
 app.get('/api/test', (req, res) => {
-  res.json({
+  res.status(200).json({
     success: true,
     message: 'SkillSwap Backend is Running!',
   });
@@ -168,12 +252,13 @@ app.use((err, req, res, next) => {
 
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal Server Error',
+    message:
+      err.message || 'Internal Server Error',
   });
 });
 
 // =========================================================
-// DATABASE & SERVER
+// DATABASE + SERVER
 // =========================================================
 
 const PORT = process.env.PORT || 5000;
@@ -181,10 +266,18 @@ const PORT = process.env.PORT || 5000;
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log('✅ MongoDB Connected Successfully!');
+    console.log(
+      '✅ MongoDB Connected Successfully!'
+    );
 
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(
+        `🚀 Server running on port ${PORT}`
+      );
+
+      console.log(
+        `🔌 Socket.IO running on port ${PORT}`
+      );
     });
   })
   .catch((err) => {
