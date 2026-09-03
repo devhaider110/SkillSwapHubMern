@@ -268,9 +268,7 @@ const Navbar = () => {
 
             {/* =================================================
                 NOTIFICATIONS
-            ================================================= */}
-
-            <div className="relative">
+            ================================================= */}    <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 transition rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
