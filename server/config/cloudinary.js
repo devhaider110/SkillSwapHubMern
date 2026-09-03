@@ -12,7 +12,35 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'skillswap/resources',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
+    allowed_formats: [
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+
+  'pdf',
+  'ppt',
+  'pptx',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+
+  'zip',
+  'rar',
+
+  'mp3',
+  'wav',
+  'ogg',
+  'm4a',
+  'webm',
+
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
+],
     resource_type: 'auto',
   },
 });

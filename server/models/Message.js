@@ -18,7 +18,14 @@ const MessageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'file', 'voice'],
+      enum: [
+  'text',
+  'image',
+  'video',
+  'file',
+  'audio',
+  'voice',
+],
       default: 'text',
     },
     readBy: [
