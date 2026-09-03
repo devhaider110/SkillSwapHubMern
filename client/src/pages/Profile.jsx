@@ -6,7 +6,7 @@ import { getOrCreateConversation } from '../services/api';
 
 const Profile = () => {
   const { user, setUser } = useAuth();
-  const { username } = useParams(); // Get username from URL
+  const { username } = useParams();
   const navigate = useNavigate();
 
   // State for own profile edit
@@ -38,12 +38,20 @@ const Profile = () => {
   useEffect(() => {
     if (!isOwnProfile && username) {
       const fetchPublicProfile = async () => {
+        setLoading(true);
+        setError('');
         try {
           const res = await getPublicProfile(username);
-          setPublicUser(res.data.user);
+          if (res.data.success && res.data.user) {
+            setPublicUser(res.data.user);
+          } else {
+            setError('User not found');
+          }
         } catch (err) {
-          setError('User not found');
-          console.error(err);
+          console.error('Public profile fetch error:', err);
+          setError(err.response?.data?.message || 'Failed to load profile');
+        } finally {
+          setLoading(false);
         }
       };
       fetchPublicProfile();
@@ -125,84 +133,128 @@ const Profile = () => {
     }
   };
 
-  // Render public profile
-  if (!isOwnProfile && publicUser) {
-    return (
-      <div className="min-h-screen p-6 bg-slate-50 dark:bg-slate-900">
-        <div className="max-w-3xl mx-auto">
-          <div className="p-8 bg-white border shadow-xl dark:bg-slate-800 rounded-2xl border-slate-200/50 dark:border-slate-700/50">
-            <div className="flex items-center gap-6 mb-6">
-              <img
-                src={
-                  publicUser.profilePic ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    publicUser.name || 'User'
-                  )}&background=6366f1&color=fff&size=100`
-                }
-                alt={publicUser.name}
-                className="object-cover w-24 h-24 border-4 border-indigo-200 rounded-full dark:border-indigo-800"
-              />
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                  {publicUser.name}
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  @{publicUser.username}
-                </p>
-                {publicUser.bio && (
-                  <p className="mt-2 text-slate-600 dark:text-slate-300">{publicUser.bio}</p>
-                )}
-              </div>
-            </div>
+  // ============================================================
+  // RENDER: Public profile (other user)
+  // ============================================================
 
-            <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
-              {publicUser.college && (
-                <div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">College</p>
-                  <p className="text-slate-800 dark:text-white">{publicUser.college}</p>
-                </div>
-              )}
-              {publicUser.company && (
-                <div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Company</p>
-                  <p className="text-slate-800 dark:text-white">{publicUser.company}</p>
-                </div>
-              )}
-              {publicUser.city && (
-                <div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">City</p>
-                  <p className="text-slate-800 dark:text-white">{publicUser.city}</p>
-                </div>
-              )}
-              {publicUser.country && (
-                <div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Country</p>
-                  <p className="text-slate-800 dark:text-white">{publicUser.country}</p>
-                </div>
-              )}
-            </div>
+  if (!isOwnProfile) {
+    // Loading state
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-900">
+          <div className="text-center">
+            <div className="w-10 h-10 mx-auto mb-4 border-4 rounded-full animate-spin border-slate-200 border-t-indigo-600" />
+            <p className="text-sm text-slate-600 dark:text-slate-300">Loading profile...</p>
+          </div>
+        </div>
+      );
+    }
 
-            <div className="flex gap-3 mt-6">
+    // Error state
+    if (error) {
+      return (
+        <div className="min-h-screen p-6 pt-24 bg-slate-50 dark:bg-slate-900">
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="p-8 bg-white border shadow-md dark:bg-slate-800 rounded-2xl border-slate-200/50 dark:border-slate-700/50">
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">User Not Found</h2>
+              <p className="mt-2 text-slate-500 dark:text-slate-400">{error}</p>
               <button
-                onClick={handleStartChat}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition"
+                onClick={() => navigate('/')}
+                className="px-6 py-2 mt-4 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
               >
-                Send Message
-              </button>
-              <button
-                onClick={() => navigate(-1)}
-                className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition"
-              >
-                Go Back
+                Go Home
               </button>
             </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    // Public profile data loaded
+    if (publicUser) {
+      return (
+        <div className="min-h-screen p-6 bg-slate-50 dark:bg-slate-900">
+          <div className="max-w-3xl mx-auto">
+            <div className="p-8 bg-white border shadow-xl dark:bg-slate-800 rounded-2xl border-slate-200/50 dark:border-slate-700/50">
+              <div className="flex items-center gap-6 mb-6">
+                <img
+                  src={
+                    publicUser.profilePic ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      publicUser.name || 'User'
+                    )}&background=6366f1&color=fff&size=100`
+                  }
+                  alt={publicUser.name}
+                  className="object-cover w-24 h-24 border-4 border-indigo-200 rounded-full dark:border-indigo-800"
+                />
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                    {publicUser.name}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    @{publicUser.username}
+                  </p>
+                  {publicUser.bio && (
+                    <p className="mt-2 text-slate-600 dark:text-slate-300">{publicUser.bio}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
+                {publicUser.college && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">College</p>
+                    <p className="text-slate-800 dark:text-white">{publicUser.college}</p>
+                  </div>
+                )}
+                {publicUser.company && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Company</p>
+                    <p className="text-slate-800 dark:text-white">{publicUser.company}</p>
+                  </div>
+                )}
+                {publicUser.city && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">City</p>
+                    <p className="text-slate-800 dark:text-white">{publicUser.city}</p>
+                  </div>
+                )}
+                {publicUser.country && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Country</p>
+                    <p className="text-slate-800 dark:text-white">{publicUser.country}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleStartChat}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition"
+                >
+                  Send Message
+                </button>
+                <button
+                  onClick={() => navigate(-1)}
+                  className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition"
+                >
+                  Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // fallback (should not happen)
+    return null;
   }
 
-  // Render own profile edit form
+  // ============================================================
+  // RENDER: Own profile edit form
+  // ============================================================
+
   return (
     <div className="min-h-screen p-6 bg-slate-50 dark:bg-slate-900">
       <div className="max-w-3xl mx-auto">
