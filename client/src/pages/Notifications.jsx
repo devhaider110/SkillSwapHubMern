@@ -45,7 +45,7 @@ const Notifications = () => {
                 }`}
                 onClick={() => {
                   if (!notif.isRead) markAsRead(notif._id);
-                  window.location.href = notif.link;
+                 console.log("Notification link:", notif.link);
                 }}
               >
                 <div className="flex items-start justify-between">
